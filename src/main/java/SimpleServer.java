@@ -148,6 +148,137 @@ public class SimpleServer {
         server.start();
 
         System.out.println("Server started on 8080");
+
+        server.createContext("/", ex -> {
+
+            String html = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Neon Items</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial;
+    background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #0f0c29);
+    background-size: 400% 400%;
+    animation: bg 10s ease infinite;
+    color: white;
+    overflow-x: hidden;
+}
+
+@keyframes bg {
+    0% {background-position:0% 50%;}
+    50% {background-position:100% 50%;}
+    100% {background-position:0% 50%;}
+}
+
+h1 {
+    text-align: center;
+    padding: 20px;
+    font-size: 32px;
+    text-shadow: 0 0 10px cyan;
+}
+
+.container {
+    max-width: 600px;
+    margin: auto;
+}
+
+.card {
+    background: rgba(255,255,255,0.08);
+    margin: 10px;
+    padding: 15px;
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: 0.3s;
+    animation: pop 0.3s ease;
+}
+
+.card:hover {
+    transform: scale(1.03);
+    box-shadow: 0 0 20px cyan;
+}
+
+@keyframes pop {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+button {
+    background: cyan;
+    border: none;
+    padding: 10px;
+    margin: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+input {
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+}
+</style>
+</head>
+
+<body>
+
+<h1>⚡ Neon Item Tracker</h1>
+
+<div class="container">
+    <input id="name" placeholder="new item..." />
+    <button onclick="addItem()">Add</button>
+
+    <div id="list"></div>
+</div>
+
+<script>
+
+async function load() {
+    const res = await fetch('/api/items');
+    const data = await res.json();
+
+    const list = document.getElementById('list');
+    list.innerHTML = '';
+
+    for (const item of data.items) {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.innerText = `#${item.id} — ${item.name}`;
+        list.appendChild(div);
+    }
+}
+
+async function addItem() {
+    const name = document.getElementById('name').value;
+
+    await fetch('/api/items?name=' + encodeURIComponent(name), {
+        method: 'POST'
+    });
+
+    document.getElementById('name').value = '';
+    load();
+}
+
+load();
+setInterval(load, 2000);
+
+</script>
+
+</body>
+</html>
+""";
+
+            byte[] bytes = html.getBytes(StandardCharsets.UTF_8);
+            ex.getResponseHeaders().add("Content-Type", "text/html; charset=utf-8");
+            ex.sendResponseHeaders(200, bytes.length);
+            ex.getResponseBody().write(bytes);
+            ex.close();
+        });
     }
 
     // ==========================
