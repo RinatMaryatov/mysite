@@ -19,5 +19,5 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Run Maven tests
-        run: mvn clean test
+      - name: Run Vasya run
+        run: mvn clean package
