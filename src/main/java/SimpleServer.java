@@ -23,42 +23,25 @@ public class SimpleServer {
         // ==========================
 
         server.createContext("/", exchange -> {
-            sendHtml(exchange, htmlPage(counter.get()));
-        });
-
-        server.createContext("/click", exchange -> {
-
-            counter.incrementAndGet();
-
-            exchange.getResponseHeaders().add("Location", "/");
-            exchange.sendResponseHeaders(302, -1);
-            exchange.close();
+            sendHtml(exchange, htmlPage());
         });
 
         // ==========================
         // REST API
         // ==========================
 
-        // GET /api/counter
         server.createContext("/api/counter", exchange -> {
-
             if (!exchange.getRequestMethod().equalsIgnoreCase("GET")) {
                 methodNotAllowed(exchange);
                 return;
             }
 
-            String json = """
-                    {
-                      "count": %d
-                    }
-                    """.formatted(counter.get());
-
-            sendJson(exchange, json);
+            sendJson(exchange, """
+                    { "count": %d }
+                    """.formatted(counter.get()));
         });
 
-        // POST /api/counter/increment
         server.createContext("/api/counter/increment", exchange -> {
-
             if (!exchange.getRequestMethod().equalsIgnoreCase("POST")) {
                 methodNotAllowed(exchange);
                 return;
@@ -66,19 +49,15 @@ public class SimpleServer {
 
             int value = counter.incrementAndGet();
 
-            String json = """
+            sendJson(exchange, """
                     {
-                      "message":"Counter incremented",
+                      "message": "Counter incremented",
                       "count": %d
                     }
-                    """.formatted(value);
-
-            sendJson(exchange, json);
+                    """.formatted(value));
         });
 
-        // POST /api/counter/reset
         server.createContext("/api/counter/reset", exchange -> {
-
             if (!exchange.getRequestMethod().equalsIgnoreCase("POST")) {
                 methodNotAllowed(exchange);
                 return;
@@ -86,31 +65,23 @@ public class SimpleServer {
 
             counter.set(0);
 
-            String json = """
+            sendJson(exchange, """
                     {
-                      "message":"Counter reset",
-                      "count":0
+                      "message": "Counter reset",
+                      "count": 0
                     }
-                    """;
-
-            sendJson(exchange, json);
+                    """);
         });
 
-        // GET /api/health
         server.createContext("/api/health", exchange -> {
-
             if (!exchange.getRequestMethod().equalsIgnoreCase("GET")) {
                 methodNotAllowed(exchange);
                 return;
             }
 
-            String json = """
-                    {
-                      "status":"UP"
-                    }
-                    """;
-
-            sendJson(exchange, json);
+            sendJson(exchange, """
+                    { "status": "UP" }
+                    """);
         });
 
         server.setExecutor(null);
@@ -124,7 +95,6 @@ public class SimpleServer {
     // ==========================
 
     static void sendHtml(HttpExchange exchange, String html) throws IOException {
-
         byte[] bytes = html.getBytes(StandardCharsets.UTF_8);
 
         exchange.getResponseHeaders().add("Content-Type", "text/html; charset=UTF-8");
@@ -136,7 +106,6 @@ public class SimpleServer {
     }
 
     static void sendJson(HttpExchange exchange, String json) throws IOException {
-
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
 
         exchange.getResponseHeaders().add("Content-Type", "application/json");
@@ -148,13 +117,15 @@ public class SimpleServer {
     }
 
     static void methodNotAllowed(HttpExchange exchange) throws IOException {
-
         exchange.sendResponseHeaders(405, -1);
         exchange.close();
     }
 
-    static String htmlPage(int count) {
+    // ==========================
+    // UI
+    // ==========================
 
+    static String htmlPage() {
         return """
                 <!DOCTYPE html>
                 <html>
@@ -162,23 +133,52 @@ public class SimpleServer {
                     <meta charset="UTF-8">
                     <title>Simple Java Site</title>
                 </head>
-                <body style="font-family:sans-serif;text-align:center;margin-top:80px;">
+
+                <body style="font-family:sans-serif;text-align:center;margin-top:60px;">
 
                     <h1>Ультрапростой сайт на Java</h1>
 
-                    <p>Счётчик: <span id="count">%d</span></p>
+                    <p>Счётчик: <span id="count">?</span></p>
+                    <p>Health: <span id="health">?</span></p>
 
-                    <button onclick="clickMe()">+1</button>
+                    <div style="margin-top:20px;">
+                        <button onclick="getCounter()">GET counter</button>
+                        <button onclick="increment()">+1</button>
+                        <button onclick="resetCounter()">reset</button>
+                        <button onclick="health()">health</button>
+                    </div>
 
                     <script>
-                        async function clickMe() {
-                            await fetch('/click');
-                            location.reload();
+                        async function getCounter() {
+                            const res = await fetch('/api/counter');
+                            const data = await res.json();
+                            document.getElementById('count').innerText = data.count;
                         }
+
+                        async function increment() {
+                            const res = await fetch('/api/counter/increment', { method: 'POST' });
+                            const data = await res.json();
+                            document.getElementById('count').innerText = data.count;
+                        }
+
+                        async function resetCounter() {
+                            const res = await fetch('/api/counter/reset', { method: 'POST' });
+                            const data = await res.json();
+                            document.getElementById('count').innerText = data.count;
+                        }
+
+                        async function health() {
+                            const res = await fetch('/api/health');
+                            const data = await res.json();
+                            document.getElementById('health').innerText = data.status;
+                        }
+
+                        // initial load
+                        getCounter();
                     </script>
 
                 </body>
                 </html>
-                """.formatted(count);
+                """;
     }
 }
