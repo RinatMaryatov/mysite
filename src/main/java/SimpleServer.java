@@ -5,180 +5,184 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class SimpleServer {
 
-    static AtomicInteger counter = new AtomicInteger(0);
+    // "База данных" для тестов
+    static Map<Integer, String> items = new ConcurrentHashMap<>();
+    static AtomicInteger idSeq = new AtomicInteger(1);
 
     public static void main(String[] args) throws Exception {
 
-        String portEnv = System.getenv("PORT");
-        int port = portEnv != null ? Integer.parseInt(portEnv) : 8080;
-
+        int port = 8080;
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
 
         // ==========================
-        // UI
+        // HEALTH
         // ==========================
-
-        server.createContext("/", exchange -> {
-            sendHtml(exchange, htmlPage());
+        server.createContext("/api/health", ex -> {
+            sendJson(ex, """
+                { "status": "UP" }
+            """);
         });
 
         // ==========================
-        // REST API
+        // RESET (очень важно для AT)
         // ==========================
+        server.createContext("/api/test/reset", ex -> {
+            items.clear();
+            idSeq.set(1);
 
-        server.createContext("/api/counter", exchange -> {
-            if (!exchange.getRequestMethod().equalsIgnoreCase("GET")) {
-                methodNotAllowed(exchange);
-                return;
-            }
-
-            sendJson(exchange, """
-                    { "count": %d }
-                    """.formatted(counter.get()));
+            sendJson(ex, """
+                { "status": "RESET_DONE" }
+            """);
         });
 
-        server.createContext("/api/counter/increment", exchange -> {
-            if (!exchange.getRequestMethod().equalsIgnoreCase("POST")) {
-                methodNotAllowed(exchange);
-                return;
-            }
+        // ==========================
+        // CREATE ITEM
+        // POST /api/items?name=abc
+        // ==========================
+        server.createContext("/api/items", ex -> {
 
-            int value = counter.incrementAndGet();
+            String method = ex.getRequestMethod();
 
-            sendJson(exchange, """
+            if ("POST".equalsIgnoreCase(method)) {
+
+                String query = ex.getRequestURI().getQuery();
+                String name = getQueryParam(query, "name");
+
+                int id = idSeq.getAndIncrement();
+                items.put(id, name);
+
+                sendJson(ex, """
                     {
-                      "message": "Counter incremented",
-                      "count": %d
+                      "id": %d,
+                      "name": "%s",
+                      "status": "CREATED"
                     }
-                    """.formatted(value));
-        });
+                """.formatted(id, name));
 
-        server.createContext("/api/counter/reset", exchange -> {
-            if (!exchange.getRequestMethod().equalsIgnoreCase("POST")) {
-                methodNotAllowed(exchange);
                 return;
             }
 
-            counter.set(0);
+            if ("GET".equalsIgnoreCase(method)) {
 
-            sendJson(exchange, """
-                    {
-                      "message": "Counter reset",
-                      "count": 0
-                    }
-                    """);
-        });
+                StringBuilder sb = new StringBuilder();
+                sb.append("{\"items\":[");
 
-        server.createContext("/api/health", exchange -> {
-            if (!exchange.getRequestMethod().equalsIgnoreCase("GET")) {
-                methodNotAllowed(exchange);
+                boolean first = true;
+                for (var e : items.entrySet()) {
+                    if (!first) sb.append(",");
+                    first = false;
+
+                    sb.append("""
+                        {"id":%d,"name":"%s"}
+                    """.formatted(e.getKey(), e.getValue()));
+                }
+
+                sb.append("]}");
+
+                sendJson(ex, sb.toString());
                 return;
             }
 
-            sendJson(exchange, """
-                    { "status": "UP" }
-                    """);
+            methodNotAllowed(ex);
+        });
+
+        // ==========================
+        // GET BY ID
+        // ==========================
+        server.createContext("/api/items/get", ex -> {
+
+            String query = ex.getRequestURI().getQuery();
+            int id = Integer.parseInt(getQueryParam(query, "id"));
+
+            String name = items.get(id);
+
+            if (name == null) {
+                notFound(ex);
+                return;
+            }
+
+            sendJson(ex, """
+                {
+                  "id": %d,
+                  "name": "%s"
+                }
+            """.formatted(id, name));
+        });
+
+        // ==========================
+        // DELETE
+        // DELETE /api/items?id=1
+        // ==========================
+        server.createContext("/api/items/delete", ex -> {
+
+            if (!"DELETE".equalsIgnoreCase(ex.getRequestMethod())) {
+                methodNotAllowed(ex);
+                return;
+            }
+
+            String query = ex.getRequestURI().getQuery();
+            int id = Integer.parseInt(getQueryParam(query, "id"));
+
+            String removed = items.remove(id);
+
+            if (removed == null) {
+                notFound(ex);
+                return;
+            }
+
+            sendJson(ex, """
+                {
+                  "status": "DELETED",
+                  "id": %d
+                }
+            """.formatted(id));
         });
 
         server.setExecutor(null);
         server.start();
 
-        System.out.println("Server started on port " + port);
+        System.out.println("Server started on 8080");
     }
 
     // ==========================
-    // Helpers
+    // helpers
     // ==========================
 
-    static void sendHtml(HttpExchange exchange, String html) throws IOException {
-        byte[] bytes = html.getBytes(StandardCharsets.UTF_8);
-
-        exchange.getResponseHeaders().add("Content-Type", "text/html; charset=UTF-8");
-        exchange.sendResponseHeaders(200, bytes.length);
-
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(bytes);
+    static String getQueryParam(String query, String key) {
+        if (query == null) return null;
+        for (String part : query.split("&")) {
+            String[] kv = part.split("=");
+            if (kv.length == 2 && kv[0].equals(key)) {
+                return kv[1];
+            }
         }
+        return null;
     }
 
-    static void sendJson(HttpExchange exchange, String json) throws IOException {
+    static void sendJson(HttpExchange ex, String json) throws IOException {
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
 
-        exchange.getResponseHeaders().add("Content-Type", "application/json");
-        exchange.sendResponseHeaders(200, bytes.length);
+        ex.getResponseHeaders().add("Content-Type", "application/json");
+        ex.sendResponseHeaders(200, bytes.length);
 
-        try (OutputStream os = exchange.getResponseBody()) {
+        try (OutputStream os = ex.getResponseBody()) {
             os.write(bytes);
         }
     }
 
-    static void methodNotAllowed(HttpExchange exchange) throws IOException {
-        exchange.sendResponseHeaders(405, -1);
-        exchange.close();
+    static void methodNotAllowed(HttpExchange ex) throws IOException {
+        ex.sendResponseHeaders(405, -1);
+        ex.close();
     }
 
-    // ==========================
-    // UI
-    // ==========================
-
-    static String htmlPage() {
-        return """
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <title>Simple Java Site</title>
-                </head>
-
-                <body style="font-family:sans-serif;text-align:center;margin-top:60px;">
-
-                    <h1>Ультрапростой сайт на Java</h1>
-
-                    <p>Счётчик: <span id="count">?</span></p>
-                    <p>Health: <span id="health">?</span></p>
-
-                    <div style="margin-top:20px;">
-                        <button onclick="getCounter()">GET counter</button>
-                        <button onclick="increment()">+1</button>
-                        <button onclick="resetCounter()">reset</button>
-                        <button onclick="health()">health</button>
-                    </div>
-
-                    <script>
-                        async function getCounter() {
-                            const res = await fetch('/api/counter');
-                            const data = await res.json();
-                            document.getElementById('count').innerText = data.count;
-                        }
-
-                        async function increment() {
-                            const res = await fetch('/api/counter/increment', { method: 'POST' });
-                            const data = await res.json();
-                            document.getElementById('count').innerText = data.count;
-                        }
-
-                        async function resetCounter() {
-                            const res = await fetch('/api/counter/reset', { method: 'POST' });
-                            const data = await res.json();
-                            document.getElementById('count').innerText = data.count;
-                        }
-
-                        async function health() {
-                            const res = await fetch('/api/health');
-                            const data = await res.json();
-                            document.getElementById('health').innerText = data.status;
-                        }
-
-                        // initial load
-                        getCounter();
-                    </script>
-
-                </body>
-                </html>
-                """;
+    static void notFound(HttpExchange ex) throws IOException {
+        ex.sendResponseHeaders(404, -1);
+        ex.close();
     }
 }
