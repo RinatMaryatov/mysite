@@ -11,7 +11,11 @@ public class SimpleServer {
     static AtomicInteger counter = new AtomicInteger(0);
 
     public static void main(String[] args) throws Exception {
-        HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
+
+        String portEnv = System.getenv("PORT");
+        int port = portEnv != null ? Integer.parseInt(portEnv) : 8080;
+
+        HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
 
         // главная страница
         server.createContext("/", exchange -> {
@@ -29,7 +33,7 @@ public class SimpleServer {
         server.setExecutor(null);
         server.start();
 
-        System.out.println("Server started: http://localhost:8080");
+        System.out.println("Server started on port " + port);
     }
 
     static void send(HttpExchange exchange, String response) throws IOException {
