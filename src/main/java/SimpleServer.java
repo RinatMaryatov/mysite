@@ -227,7 +227,7 @@ input {
 
 <body>
 
-<h1>⚡ Neon Item Tracker</h1>
+<h1>⚡ Neeon Item Tracker</h1>
 
 <div class="container">
     <input id="name" placeholder="new item..." />
