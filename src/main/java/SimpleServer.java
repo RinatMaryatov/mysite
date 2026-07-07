@@ -266,7 +266,7 @@ Join room
                              await navigator.mediaDevices.getUserMedia({
             
                                  video:true,
-                                 audio:true
+                                 audio:false
             
                              });
             
