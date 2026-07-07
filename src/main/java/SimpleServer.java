@@ -247,14 +247,17 @@ Join room
                      let remoteStream;
             
                      const rtcConfig = {
-            
-                         iceServers: [
-                             {
-                                 urls: "stun:stun.l.google.com:19302"
-                             }
-                         ]
-            
-                     };
+                                     iceServers:[
+                                         {
+                                             urls:"stun:stun.l.google.com:19302"
+                                         },
+                                         {
+                                             urls:"turn:YOUR_TURN_SERVER",
+                                             username:"user",
+                                             credential:"password"
+                                         }
+                                     ]
+                                 };
             
                      joinButton.onclick = join;
             
@@ -376,54 +379,77 @@ Join room
             
                          pc.onicecandidate = e=>{
             
-                             if(!e.candidate)
-                                 return;
+                                         if(e.candidate){
             
-                             ws.send(JSON.stringify({
+                                             ws.send(JSON.stringify({
             
-                                 type:"candidate",
+                                                 type:"candidate",
             
-                                 candidate:e.candidate
+                                                 candidate:e.candidate
             
-                             }));
+                                             }));
             
-                         };
+                                         }
             
-                     }
+                                     };
             
-                     async function makeOffer(){
+                    async function makeOffer(){
             
-                         const offer = await pc.createOffer();
+                                    const offer = await pc.createOffer();
             
-                         await pc.setLocalDescription(offer);
             
-                         ws.send(JSON.stringify({
+                                    await pc.setLocalDescription(offer);
             
-                             type:"offer",
             
-                             sdp:offer
+                                    ws.send(JSON.stringify({
             
-                         }));
+                                        type:"offer",
             
-                     }
+                                        sdp: {
+            
+                                            type: offer.type,
+            
+                                            sdp: offer.sdp
+            
+                                        }
+            
+                                    }));
+            
+                                }
             
                      async function receiveOffer(msg){
             
-                         await pc.setRemoteDescription(msg.sdp);
+                                     if(!pc){
             
-                         const answer = await pc.createAnswer();
+                                         await createPeer();
             
-                         await pc.setLocalDescription(answer);
+                                     }
             
-                         ws.send(JSON.stringify({
             
-                             type:"answer",
+                                     await pc.setRemoteDescription(msg.sdp);
             
-                             sdp:answer
             
-                         }));
+                                     const answer = await pc.createAnswer();
             
-                     }
+            
+                                     await pc.setLocalDescription(answer);
+            
+            
+                                     ws.send(JSON.stringify({
+            
+                                         type:"answer",
+            
+                                         sdp: {
+            
+                                             type: answer.type,
+            
+                                             sdp: answer.sdp
+            
+                                         }
+            
+                                     }));
+            
+                                 }
             
                      async function receiveAnswer(msg){
             
