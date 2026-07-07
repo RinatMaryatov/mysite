@@ -299,11 +299,9 @@ Join room
             
                          ws.onopen = async ()=>{
             
-                             status.innerText="Connected";
+                                         status.innerText="Connected";
             
-                             await createPeer();
-            
-                         };
+                                     };
             
                          ws.onmessage = async e=>{
             
@@ -391,7 +389,12 @@ Join room
             
                     async function makeOffer(){
             
-                                    const offer = await pc.createOffer();
+             if(!pc){
+                                await createPeer();
+                            }
+            
+                            const offer = await pc.createOffer();
+            
             
             
                                     await pc.setLocalDescription(offer);
@@ -416,13 +419,10 @@ Join room
                      async function receiveOffer(msg){
             
                                      if(!pc){
+                                                         await createPeer();
+                                                     }
             
-                                         await createPeer();
-            
-                                     }
-            
-            
-                                     await pc.setRemoteDescription(msg.sdp);
+                                                     await pc.setRemoteDescription(msg.sdp);
             
             
                                      const answer = await pc.createAnswer();
