@@ -306,6 +306,7 @@ Join room
                          ws.onmessage = async e=>{
             
                              const msg = JSON.parse(e.data);
+                             console.log("SERVER MESSAGE:", msg);
             
                              console.log(msg);
             
@@ -349,6 +350,14 @@ Join room
                      async function createPeer(){
             
                          pc = new RTCPeerConnection(rtcConfig);
+                         
+                         pc.onconnectionstatechange = ()=> {
+                                         console.log("CONNECTION:", pc.connectionState);
+                                     };
+            
+                                     pc.oniceconnectionstatechange = ()=> {
+                                         console.log("ICE:", pc.iceConnectionState);
+                                     };
             
                          remoteStream = new MediaStream();
             
