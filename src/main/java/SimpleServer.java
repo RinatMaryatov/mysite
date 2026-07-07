@@ -250,11 +250,6 @@ Join room
                                      iceServers:[
                                          {
                                              urls:"stun:stun.l.google.com:19302"
-                                         },
-                                         {
-                                             urls:"turn:YOUR_TURN_SERVER",
-                                             username:"user",
-                                             credential:"password"
                                          }
                                      ]
                                  };
@@ -392,6 +387,7 @@ Join room
                                          }
             
                                      };
+                                     }
             
                     async function makeOffer(){
             
